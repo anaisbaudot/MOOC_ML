@@ -1,0 +1,145 @@
+========================================================  
+Report MOOC Machine Learning  
+June, 2014  
+--------------------------------------------------------    
+
+## Step 0 - Loading package and data
+
+
+```{r}
+# Load Packages
+library(caret)
+
+#Load data
+pmltraining<-read.csv("./Data/pml-training.csv", na.strings=c("NA","")) # transform empty space to NAs
+dim(pmltraining)
+
+```
+
+The dataset contains 19622 observations of 160 variables.  
+
+## Step 1 - Creating training/testing files  
+Before all analyses, the dataset is splitted into a training and a testing file, so the exploration of the data are done only in the training file.  
+The size of the training set is chosen to contain 25% of the data, in order to avoid large computing time during the model training.  
+
+```{r}
+inTrain<-createDataPartition(y=pmltraining$classe, p=0.25, list=FALSE) # 25% of the data in training
+trainingraw<-pmltraining[inTrain,]
+testingraw<-pmltraining[-inTrain,]
+dim(trainingraw)
+dim(testingraw)
+```
+
+## Step 2 - Exploring data
+
+The goal of this step is to explore the different variable, in order to identify which column might be kept for the model training.  
+Some predictors are non-sensor data (based on the column name)
+and/or have a too-good-to-be-true correlation with the outcome. In the following plot for instance,
+X is too correlated with the outcome, timestamp and new_window are not sensor data.  
+
+```{r fig.width=7, fig.height=6}
+featurePlot(x=trainingraw[,c("X","new_window","cvtd_timestamp", "classe")],
+            y=trainingraw$classe, plot="pairs")
+```
+
+Contrarily, other columns do contain sensor measurements, and could be used as predictors to train a model.  For instance, the variables roll_belt, pitch_forearm and yaw_belt.  
+
+```{r fig.width=7, fig.height=6}
+
+#density plot
+qplot(roll_belt, colour=classe, data=trainingraw, geom="density")
+```
+
+```{r fig.width=7, fig.height=6}
+#boxplot
+p1<-qplot(classe, pitch_forearm, fill=classe, data=trainingraw, geom=c("boxplot", "jitter"))
+p1
+```
+
+```{r fig.width=7, fig.height=6}
+p2<-qplot(classe, yaw_belt, fill=classe, data=trainingraw, geom=c("boxplot", "jitter"))
+p2
+```
+## Step 3  - Cleaning data
+The raw dataset contains 160 columns, and after cleaning of columns containing NAs, empty space, or not related to sensor data
+53 columns (including the outcome class) remain.
+
+```{r}
+# Remove columns containing NAs (and empty spaces)
+trainingrawnoNA<-trainingraw[sapply(trainingraw, function(x) !any(is.na(x)))]
+dim(trainingrawnoNA)
+
+# Remove columns containing non-sensors related data
+colrm<-c("X","user_name", "num_window", "new_window", "raw_timestamp_part_1",
+         "raw_timestamp_part_2", "cvtd_timestamp")
+training<-trainingrawnoNA[,!names(trainingrawnoNA) %in% colrm]
+dim(training)
+```
+
+## Step 3 - Training
+
+### Modeling
+```{r}
+set.seed(42)
+
+modelFit<-train(training$classe~., method="rf", trControl=trainControl(method="cv", number=10),
+                   data=training)
+
+```
+
+### Explications of the method and the parameters
+* Different training method were tested. Some are not adapted to the 5-classes outcomes we are trying to predict (like method="glm"), others give very bad accuracies (for instance, method="rpart"). The chosen train method, after some exploration, is Random Forest. Using the carret package, the argument is method="rf".  
+* Preprocessing. The data could be preprocessed with, for instance, PCA (Principal Component Analysis). However, preprocessing the data didn't increase the accuracy, and lead to an interpretation of the results that is more difficult, concerning in particular the importance of the different parameters.
+* trControl. The default trControl is bootstrap. As we're interested here in the cross-validation, the trControl was paramatrized to use this approach, with a partition in 10 folds. Furthermore, cross-validation is less time consumming than bootstrap.  
+
+
+
+```{r}
+modelFit$finalModel
+```
+The out-of-bag error rate, estimated from the cross-validation is 0.0226.  
+
+
+## Step 4 - Applying the model to the testing dataset
+Calculate out of sample error
+## Cleaning data TestSet
+The testing dataset needs to be cleaned in the same way as the training dataset.  
+```{r}
+# Remove columns containing NAs (and empty spaces)
+testingrawnoNA<-testingraw[sapply(testingraw, function(x) !any(is.na(x)))]
+dim(testingrawnoNA)
+
+# Remove columns containing non-sensors related data
+colrm<-c("X","user_name", "num_window", "new_window", "raw_timestamp_part_1",
+         "raw_timestamp_part_2", "cvtd_timestamp")
+testing<-testingrawnoNA[,!names(testingrawnoNA) %in% colrm]
+dim(testing)
+```
+
+## Applying the model
+```{r}
+predictions<-predict(modelFit, newdata=testing)
+summary(predictions)
+
+```
+
+## Confusion matrix
+The confusion matrix permits to see that all classes have a good accuracy, the model is predicting correctly all classes (as also indicated by the Kappa concordance measure).   
+```{r}
+#out of sample error
+cm<-confusionMatrix(predictions, testing$classe)
+cm
+```
+The overall accuracy of the model is:  
+```{r}
+cm$overall[1]
+```
+
+
+The varImp call gives the importance of the different predictors for the model. Noticeabily, these indications would have been PC1, PC2... if we would have preprocessed the data with PCA. Here, we can see that roll_belt is the most important predictor for the model.
+```{r}
+varImp(modelFit, scale=TRUE)
+```
+
+### Conclusion
+
