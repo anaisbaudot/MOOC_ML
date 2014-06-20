@@ -44,22 +44,29 @@ featurePlot(x=trainingraw[,c("X","new_window","cvtd_timestamp", "classe")],
 
 Contrarily, other columns do contain sensor measurements, and could be used as predictors to train a model.  For instance, the variables roll_belt, pitch_forearm and yaw_belt.  
 
+### Density plot for roll_belt  
 ```{r fig.width=7, fig.height=6}
 
 #density plot
 qplot(roll_belt, colour=classe, data=trainingraw, geom="density")
 ```
 
+
+### boxplot for pitch_forearm  
 ```{r fig.width=7, fig.height=6}
 #boxplot
 p1<-qplot(classe, pitch_forearm, fill=classe, data=trainingraw, geom=c("boxplot", "jitter"))
 p1
 ```
 
+
+### boxplot for yaw_belt  
 ```{r fig.width=7, fig.height=6}
 p2<-qplot(classe, yaw_belt, fill=classe, data=trainingraw, geom=c("boxplot", "jitter"))
 p2
 ```
+
+
 ## Step 3  - Cleaning data
 The raw dataset contains 160 columns, and after cleaning of columns containing NAs, empty space, or not related to sensor data
 53 columns (including the outcome class) remain.
@@ -142,4 +149,5 @@ varImp(modelFit, scale=TRUE)
 ```
 
 ### Conclusion
+The model has a very low error rate, in-sample and out-of-sample. This indicates that among the predictors, there are very strong predictors, such as roll_belt.  
 
